@@ -17,28 +17,25 @@ bool isOnSameNetwork (char *address, struct ifaddrs *interface) {
     return (false);
 }
 
-bool findLocalInterface (char *address, struct ifaddrs *interface) {
+char *findLocalInterface (char *address) {
     struct ifaddrs *interfaceList;
-
-    printf("%s\n\n\n", address);
-
+    char *name;
 
     if (getifaddrs(&interfaceList) == -1)
-        return (perror("Error: "), false);
+        return (perror("Error: "), NULL);
 
     for (struct ifaddrs *temp = interfaceList; temp != NULL; temp = temp->ifa_next) {
-        printf("Interface name : %s\n", temp->ifa_name);
-        printf("Interface family : %d\n", temp->ifa_addr->sa_family);
         if (temp->ifa_addr->sa_family == AF_INET) {
             if (isOnSameNetwork(address, temp)) {
-                memcpy(interface, temp, sizeof(struct ifaddrs));
-                interface->ifa_next = NULL;
+                name = strdup(temp->ifa_name);
+                // name = malloc(strlen(temp->ifa_name) * sizeof(char));
+                // strcpy(name, temp->ifa_name);
                 freeifaddrs(interfaceList);
-                return (true);
+                return (name);
             }
         }
     }
 
     freeifaddrs(interfaceList);
-    return (false);
+    return (NULL);
 }
