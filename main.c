@@ -8,27 +8,31 @@
 int stop = 0;
 
 void printHelp(void) {
-    printf("Usage: ping [OPTION...] HOST ...\nSend ICMP ECHO_REQUEST packets to network hosts.\n\nOptions valid for all request types:\n\n -v, --verbose              verbose output\n");
+    printf("LOL\n");
+    printf("Usage: ping [OPTION...] HOST ...\nSend ICMP ECHO_REQUEST packets to network hosts.\n\nOptions valid for all request types:\n\n -v              verbose output\n");
 }
 
-bool reverseDns(char *name) {
-    struct addrinfo *address; 
-    getaddrinfo(name, NULL, NULL, &address);
+// bool reverseDns(char *name) {
+//     struct addrinfo *address; 
+//     getaddrinfo(name, NULL, NULL, &address);
 
-    for (struct addrinfo *temp = address; temp != NULL; temp = temp->next){
-        printf(temp.)
-    }
-}
+//     for (struct addrinfo *temp = address; temp != NULL; temp = temp){
+//     }
+// }
 
 bool parseArg(int argc, char **argv, struct arguments *arguments) {
 
     if (argc == 2) {
         if (strcmp(argv[1], "-?") == 0) {
-            return (arguments->verboseIsEnable = true, true);
+            return (arguments->helpIsEnable = true, true);
+        }
+        if (strcmp(argv[1], "-v") == 0) {
+            return (printf("ping: usage error: Adresse de destination requise\n"), false);
         }
         if (!inet_pton(AF_INET, argv[1], arguments->address))
-            if (!reverseDns(argv[1]))
-                return (printf("Error: invalid IP address\n"), false);
+            // if (!reverseDns(argv[1]))
+            //     return (printf("Error: invalid IP address\n"), false);
+            return (printf("Error: invalid IP address\n"), false);
 
         if (inet_ntop(AF_INET, arguments->address, arguments->addressPrintable, INET_ADDRSTRLEN) == NULL)
             return (perror("Error: "), false);
@@ -38,7 +42,7 @@ bool parseArg(int argc, char **argv, struct arguments *arguments) {
             return (printf("Error: invalid options\n"), false);
 
         if (strcmp(argv[1], "-?") == 0)
-            arguments->helpIsEnable = true;
+        return (arguments->helpIsEnable = true, true);
 
         if (strcmp(argv[1], "-v") == 0)
             arguments->verboseIsEnable = true;
@@ -101,18 +105,22 @@ bool createDestAddress(struct arguments *arguments, struct sockaddr_in *destAddr
     return (true);
 }
 
-void printData(char *buffer, double rtt) {
+void printData(char *buffer, double rtt, struct sockaddr_in *destAddress) {
     struct iphdr *ip = (struct iphdr *) buffer;
     struct icmphdr *response = (struct icmphdr *)(buffer + (ip->ihl * 4));
 
-    printf("%ld bytes\n", sizeof(buffer) * sizeof(char *));
-    printf("icmp_seq=%d\n", response->un.echo.sequence);
-    printf("time=%.3f ms\n", rtt);
-    printf("ttl=%d\n", ip->ttl);
+    printf("%ld bytes from %s: icmp_seq=%d ttl=%d time=%.3f ms\n",
+        sizeof(buffer) * sizeof(char *),
+        inet_ntoa(destAddress->sin_addr),
+        response->un.echo.sequence,
+        ip->ttl,
+        rtt); 
 }
 
 bool sendPacket(struct sockaddr_in *destAddress, struct sockaddr_in *srcAddress, int sock) {
-    struct icmphdr packet;
+    struct stats stat;
+    struct icmphdr packet = {};
+    stat.minTimeTrip = INFINITY;
     struct timeval startTv, endTv;
     ssize_t lenSend, lenRecv = 0;
     char buffer[IP_MAXPACKET];
@@ -131,14 +139,35 @@ bool sendPacket(struct sockaddr_in *destAddress, struct sockaddr_in *srcAddress,
 
         double rtt = (endTv.tv_sec - startTv.tv_sec) * 1000.0 + (endTv.tv_usec - startTv.tv_usec) / 1000.0;
 
-        printData(buffer, rtt);
-
-        if (lenSend < 0 || lenRecv < 0)
+        if (lenSend < 0)
             return (perror("Error: "), false);
+
+        if (lenRecv > 0) { // Vérifie que le paquet a été reçu
+            double rtt = (endTv.tv_sec - startTv.tv_sec) * 1000.0 + (endTv.tv_usec - startTv.tv_usec) / 1000.0;
+
+            printData(buffer, rtt, destAddress);
+
+            stat.packetReceived++;
+            if (rtt > stat.maxTimeTrip)
+                stat.maxTimeTrip = rtt;
+            if (rtt < stat.minTimeTrip)
+                stat.minTimeTrip = rtt;
+            stat.totTimeTrip += rtt;
+            stat.sqrTimeTrip += rtt * rtt;
+        }
+
+        stat.packetTransmitted++;
 
         packet.un.echo.sequence++;
         sleep(1);
     }
+
+    stat.packetLoss = stat.packetTransmitted - stat.packetReceived;
+    double avgRTT = stat.packetReceived > 0 ? stat.totTimeTrip / stat.packetReceived : 0;
+    double stddevRTT = stat.packetReceived > 0 ? sqrt((stat.sqrTimeTrip / stat.packetReceived) - (avgRTT * avgRTT)) : 0;
+
+    printf("--- %s ping statistics ---\n%d packets transmitted, %d packets received, %d packet loss\nround-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
+        inet_ntoa(destAddress->sin_addr), stat.packetTransmitted, stat.packetReceived, stat.packetLoss, stat.minTimeTrip, avgRTT, stat.maxTimeTrip, stddevRTT);
 
     return (true);
 }
@@ -150,8 +179,8 @@ bool ping(struct arguments *arguments) {
     struct timeval timeout;
 
     //Init d'un tiimeout pour recvfrom si pas de reponse au bout de 2sec
-    timeout.tv_sec = 2;   
-    timeout.tv_usec = 0;
+    timeout.tv_sec = 0;   
+    timeout.tv_usec = 10000;
     setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
     memset(&destAddress, 0, sizeof(struct sockaddr_in));
@@ -163,13 +192,13 @@ bool ping(struct arguments *arguments) {
     return (true);
 }
 
-//faire les moyennes, resolution DNS (google.com), Si ping marche pas
+// resolution DNS (google.com), Si ping marche pas
 int main(int argc, char **argv) {
     setSignalAction();
     struct arguments arguments;
     memset(&arguments, 0, sizeof(struct arguments));
 
-    if (!parseArg(argc, argv, &arguments))
+    if (parseArg(argc, argv, &arguments) == false)
         return (1);
     if (arguments.helpIsEnable)
         return(printHelp(), 1);

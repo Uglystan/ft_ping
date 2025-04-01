@@ -22,12 +22,23 @@
 #include <netinet/ip.h>
 #include <signal.h>
 #include <strings.h>
+#include <math.h>
 
 struct arguments {
     bool verboseIsEnable;
     bool helpIsEnable;
     char addressPrintable[INET_ADDRSTRLEN];
     unsigned char address[sizeof(struct in_addr)];
+};
+
+struct stats {
+    int packetTransmitted;
+    int packetReceived;
+    int packetLoss;
+    double minTimeTrip;
+    double totTimeTrip;
+    double maxTimeTrip;
+    double sqrTimeTrip;
 };
 
 char  *findLocalInterface (char *address);
