@@ -117,6 +117,19 @@ void printData(char *buffer, double rtt, struct sockaddr_in *destAddress) {
         rtt); 
 }
 
+void printStat(struct stats *stat, struct sockaddr_in *destAddress) {
+    stat->packetLoss = stat->packetTransmitted - stat->packetReceived;
+    double avgRTT = stat->packetReceived > 0 ? stat->totTimeTrip / stat->packetReceived : 0;
+    double stddevRTT = stat->packetReceived > 1 ? sqrt((stat->sqrTimeTrip / stat->packetReceived) - (avgRTT * avgRTT)) : 0;
+    float lossPercent = (stat->packetLoss / (float)stat->packetTransmitted) * 100;
+    
+    printf("--- %s ping statistics ---\n%d packets transmitted, %d packets received, %.0f%% packet loss\n", inet_ntoa(destAddress->sin_addr), stat->packetTransmitted, stat->packetReceived, lossPercent);
+
+    if (stat->packetReceived != 0)
+        printf("round-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
+            stat->minTimeTrip, avgRTT, stat->maxTimeTrip, stddevRTT);
+}
+
 bool sendPacket(struct sockaddr_in *destAddress, struct sockaddr_in *srcAddress, int sock) {
     struct stats stat;
     struct icmphdr packet = {};
@@ -162,12 +175,7 @@ bool sendPacket(struct sockaddr_in *destAddress, struct sockaddr_in *srcAddress,
         sleep(1);
     }
 
-    stat.packetLoss = stat.packetTransmitted - stat.packetReceived;
-    double avgRTT = stat.packetReceived > 0 ? stat.totTimeTrip / stat.packetReceived : 0;
-    double stddevRTT = stat.packetReceived > 0 ? sqrt((stat.sqrTimeTrip / stat.packetReceived) - (avgRTT * avgRTT)) : 0;
-
-    printf("--- %s ping statistics ---\n%d packets transmitted, %d packets received, %d packet loss\nround-trip min/avg/max/stddev = %.3f/%.3f/%.3f/%.3f ms\n",
-        inet_ntoa(destAddress->sin_addr), stat.packetTransmitted, stat.packetReceived, stat.packetLoss, stat.minTimeTrip, avgRTT, stat.maxTimeTrip, stddevRTT);
+    printStat(&stat, destAddress);
 
     return (true);
 }
