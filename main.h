@@ -23,12 +23,20 @@
 #include <signal.h>
 #include <strings.h>
 #include <math.h>
+#define PKT_SIZE 64
 
 struct arguments {
     bool verboseIsEnable;
     bool helpIsEnable;
+    char *host;
     char addressPrintable[INET_ADDRSTRLEN];
     unsigned char address[sizeof(struct in_addr)];
+    struct sockaddr_in destAddress;
+};
+
+struct ping_pkt {
+    struct icmphdr hdr;                             // 8 octets
+    char msg[PKT_SIZE - sizeof(struct icmphdr)]; // 56 octets de données
 };
 
 struct stats {
@@ -40,8 +48,5 @@ struct stats {
     double maxTimeTrip;
     double sqrTimeTrip;
 };
-
-char  *findLocalInterface (char *address);
-char *findDefaultInterface();
 
 #endif
