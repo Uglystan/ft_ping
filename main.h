@@ -30,7 +30,6 @@ struct arguments {
     bool helpIsEnable;
     char *host;
     char addressPrintable[INET_ADDRSTRLEN];
-    unsigned char address[sizeof(struct in_addr)];
     struct sockaddr_in destAddress;
 };
 

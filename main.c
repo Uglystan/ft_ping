@@ -1,23 +1,55 @@
 #include "main.h"
 #include "printUtils.h"
+#include <netdb.h>
 #include <stdio.h>
+#include <unistd.h>
+
+/*
+struct sockaddr_in exclusivement dedie a l'IPV4:
+    - sin_family (2 octects): pour dire qu'elle type d'adresse (AF_INET = IPV4)
+    - sin_port (2 octects): Le numero de port a 0 pour ping
+    - sin_addr (4 octects): Chaque octect est un nombre de l'adresse ip (sous structure uint32_t s_addr)
+    - sin_zero[8] (8 octects): Remplis de 0 pour que la structure fasse 16 octects comme sockaddr qui est la structure generique
+*/
+
+/*
+struct addrinfo pour communiquer avec getaddrinfo:
+    - ai_flags (int): Option supplementaire specifique
+    - ai_family (int): Pour specifier un type d'ip de retour (IPV4 = AF_INET, IPV6 AF_INET6 ou les deux AF_UNSPEC)
+    - ai_socktype (int): type de socket (SOCK_STREAM -> TCP, SOCK_RAW -> socket brut)
+    - ai_protocol (int): Protocole utilise (0 pour ping mais sinon ca sert a preciser si on veut du TCP ou de l'UDP)
+    - ai_addrlen (socklen_t): Taille de ai_addr (IPV4 16octects)
+    - ai_addr (* sockaddr): Adresse IP resolue -> pointeur vers sockaddr_in
+    - ai_canonname (* char): Le nom d'hote officiel
+    - ai_next (*addrinfo): Pointeur vers le resultat suivant de la lsite chainee (1 nom de domaine peut avoir plusieurs IP dans le monde)
+*/
+
+/*
+ICMP (Internet Control Message Protocol):
+    - contrôle, de diagnostic et de rapport d'erreurs
+    - struct icmphdr (icmp header) union un dans la struct car on a plusieur interpretation des 4 derniers octects donc dans le union on prend echo c'est l'interpretation de ping:
+        - type (uint8_t): Type de message (ICMP_ECHO -> Echo request demande, ICMP_ECHOREPLY -> Echo reply reponse, ICMP_TIME_EXCEEDED -> Erreur TTL trop de saut TTL donc paquet detruit, ICMP_DEST_UNREACH -> destinataire injoignable)
+        - code (uint8_t): code d'erreur apporte une precision au type (ICMP_DEST_UNREACH + code 0 reseau entier inaccesible, code 1 l'hote n'existe pas...)
+        - checksum (uint16_t): Somme de controle verifie l'integrite du paquet
+        - id (uint16_t): Identifiant unique (PID du processus) Pour verifier a quelel processus appartient la reponse on met le pid du programme emetteur
+        - sequence (uint16_t): Numero de la sequence
+*/
 
 int stop = 0;
 
 bool resolveHost(struct arguments *arguments) {
-  struct addrinfo hints, *res;
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = AF_INET; // Forcer IPv4
-  int status = getaddrinfo(arguments->host, NULL, &hints, &res);
+  struct addrinfo hints = {0}; // Restriction de recherche pour getaddrinfo
+  struct addrinfo *res = NULL; // 
+
+  hints.ai_family = AF_INET; // Forcer IPv4 pour n'avoir que les IPV4
+  int status = getaddrinfo(arguments->host, NULL, &hints, &res); // Resolution DNS pas de port car socket_raw
   if (status != 0) {
     return (false);
   }
   // Récupérer l'adresse IPv4
-  struct sockaddr_in *ipv4 = (struct sockaddr_in *)res->ai_addr;
+  struct sockaddr_in *ipv4 = (struct sockaddr_in *)res->ai_addr; // On a uniquement besoins de l'IP du nom de domaine (sockaddr_in uniquement pour IPV4)
   arguments->destAddress = *ipv4;
-  memcpy(arguments->address, &ipv4->sin_addr, sizeof(struct in_addr));
-  inet_ntop(AF_INET, &ipv4->sin_addr, arguments->addressPrintable,
-            INET_ADDRSTRLEN);
+  inet_ntop(AF_INET, &ipv4->sin_addr, arguments->addressPrintable, INET_ADDRSTRLEN); // Convertit l'ip en texte
   freeaddrinfo(res);
   return (true);
 }
@@ -56,8 +88,7 @@ void sigint_handler(int sig) {
 }
 
 void setSignalAction(void) {
-  struct sigaction act;
-  bzero(&act, sizeof(act));
+  struct sigaction act = {0};
   act.sa_handler = &sigint_handler;
   sigaction(SIGINT, &act, NULL);
 }
@@ -170,7 +201,6 @@ bool sendPacket(struct sockaddr_in *srcAddress,
 }
 
 bool ping(struct arguments *arguments) {
-  struct sockaddr_in destAddress;
   struct sockaddr_in srcAddress;
   int sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
   if (sock < 0) {
@@ -196,8 +226,7 @@ bool ping(struct arguments *arguments) {
 // resolution DNS (google.com), Si ping marche pas
 int main(int argc, char **argv) {
   setSignalAction();
-  struct arguments arguments;
-  memset(&arguments, 0, sizeof(struct arguments));
+  struct arguments arguments = {0};
 
   if (parseArg(argc, argv, &arguments) == false)
     return (1);
