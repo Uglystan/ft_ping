@@ -1,14 +1,13 @@
-# Un ping sur 2
-# sudo iptables -A INPUT -p icmp -m statistic --mode random --probability 0.5 -j DROP
-# Remettre normal
-# sudo iptables -D INPUT -p icmp -m statistic --mode random --probability 0.5 -j DROP
 NAME = ft_ping
 CC = cc
-CFLAGS = -Werror -Wall -Wextra
+CFLAGS = -Werror -Wall -Wextra -Iinclude
 RM = rm -rf
 
-SRC = main.c \
-	printUtils.c \
+SRC = src/main.c \
+	src/printUtils.c \
+	src/parse.c \
+	src/createPacket.c \
+	src/ping.c
 
 OBJ = $(SRC:.c=.o)
 
@@ -25,18 +24,19 @@ fclean: clean
 
 re: fclean all
 
-docker-build:
-	docker build -t ft_ping_env .
+PHONY: all clean fclean re
 
-docker:
-	@docker image inspect ft_ping_env > /dev/null 2>&1 || docker build -t ft_ping_env .
-	docker run --rm -it --cap-add=NET_RAW -v "$$(pwd)":/app -w /app ft_ping_env bash
+#sudo ip netns add router
+#sudo ip link add veth-vm type veth peer name veth-rtr
+#sudo ip link set veth-rtr netns router
+#sudo ip addr add 192.168.99.1/24 dev veth-vm
+#sudo ip link set veth-vm up
+#sudo ip netns exec router ip addr add 192.168.99.2/24 dev veth-rtr
+#sudo ip netns exec router ip link set veth-rtr up
+#sudo ip netns exec router sysctl -w net.ipv4.ip_forward=1
+#sudo ip route add 1.1.1.1 via 192.168.99.2
 
-test:
-	@docker image inspect ft_ping_env > /dev/null 2>&1 || docker build -t ft_ping_env .
-	docker run --rm -it --cap-add=NET_RAW -v "$$(pwd)":/app -w /app ft_ping_env sh -c "make && ./ft_ping 8.8.8.8"
 
-PHONY: all clean fclean re docker docker-build test
-
-
-#ping --ttl=1 8.8.8.8 -v
+#sudo ip route del 1.1.1.1
+#sudo ip link del veth-vm
+#sudo ip netns del router
