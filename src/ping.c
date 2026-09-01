@@ -81,7 +81,8 @@ bool sendPacket(struct sockaddr_in *srcAddress,
     stat.packetTransmitted++;
 
     packet.hdr.un.echo.sequence++;
-    sleep(1);
+    if (lenRecv > 0)
+        sleep(1);
   }
 
   printStat(&stat, arguments);
@@ -98,8 +99,8 @@ bool ping(struct arguments *arguments) {
   }
   struct timeval timeout;
 
-  int ttl = 1;
-  setsockopt(sock, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
+  // int ttl = 1;
+  // setsockopt(sock, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
 
   // Init d'un timeout pour recvfrom si pas de reponse au bout de 1sec
   timeout.tv_sec = 1;
