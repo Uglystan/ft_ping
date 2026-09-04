@@ -59,20 +59,72 @@ bool sendPacket(struct sockaddr_in *srcAddress,
           stat.totTimeTrip += rtt;
           stat.sqrTimeTrip += rtt * rtt;
         }
-      } else if (response->type == ICMP_TIME_EXCEEDED) {
-        // 2. Erreur : TTL expiré
+      } else {
+        // Erreurs ICMP
         char srcIp[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &srcAddress->sin_addr, srcIp, sizeof(srcIp));
-        printf("%ld bytes from %s: Time to live exceeded\n",
-               lenRecv - (ip->ihl * 4), srcIp);
-        if (arguments->verboseIsEnable)
-          printRespHeader(buffer);
-      } else if (response->type == ICMP_DEST_UNREACH) {
-        // 3. Erreur : Destination unreachable
-        char srcIp[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &srcAddress->sin_addr, srcIp, sizeof(srcIp));
-        printf("%ld bytes from %s: Destination Host Unreachable\n",
-               lenRecv - (ip->ihl * 4), srcIp);
+        const char *error_msg = "Unknown ICMP Error";
+        
+        switch (response->type) {
+          case ICMP_DEST_UNREACH: // 3
+              switch (response->code) {
+                  case 0: error_msg = "Destination network unreachable"; break;
+                  case 1: error_msg = "Destination host unreachable"; break;
+                  case 2: error_msg = "Destination protocol unreachable"; break;
+                  case 3: error_msg = "Destination port unreachable"; break;
+                  case 4: error_msg = "Fragmentation required, and DF flag set"; break;
+                  case 5: error_msg = "Source route failed"; break;
+                  case 6: error_msg = "Destination network unknown"; break;
+                  case 7: error_msg = "Destination host unknown"; break;
+                  case 8: error_msg = "Source host isolated"; break;
+                  case 9: error_msg = "Network administratively prohibited"; break;
+                  case 10: error_msg = "Host administratively prohibited"; break;
+                  case 11: error_msg = "Network unreachable for ToS"; break;
+                  case 12: error_msg = "Host unreachable for ToS"; break;
+                  case 13: error_msg = "Communication administratively prohibited"; break;
+                  case 14: error_msg = "Host Precedence Violation"; break;
+                  case 15: error_msg = "Precedence cutoff in effect"; break;
+                  default: error_msg = "Destination Unreachable (unknown code)"; break;
+              }
+              break;
+          case ICMP_SOURCE_QUENCH: // 4
+              error_msg = "Source quench (congestion control)"; break;
+          case ICMP_REDIRECT: // 5
+              switch (response->code) {
+                  case 0: error_msg = "Redirect Datagram for the Network"; break;
+                  case 1: error_msg = "Redirect Datagram for the Host"; break;
+                  case 2: error_msg = "Redirect Datagram for the ToS & network"; break;
+                  case 3: error_msg = "Redirect Datagram for the ToS & host"; break;
+                  case 6: error_msg = "Alternate Host Address"; break;
+                  default: error_msg = "Redirect Message (unknown code)"; break;
+              }
+              break;
+          case ICMP_ECHO: // 8
+              error_msg = "Echo request"; break;
+          case 9: // Router Advertisement
+              error_msg = "Router Advertisement"; break;
+          case 10: // Router Solicitation
+              error_msg = "Router discovery/selection/solicitation"; break;
+          case ICMP_TIME_EXCEEDED: // 11
+              switch (response->code) {
+                  case 0: error_msg = "Time to live (TTL) expired in transit"; break;
+                  case 1: error_msg = "Fragment reassembly time exceeded"; break;
+                  default: error_msg = "Time Exceeded (unknown code)"; break;
+              }
+              break;
+          case ICMP_PARAMETERPROB: // 12
+              switch (response->code) {
+                  case 0: error_msg = "Pointer indicates the error"; break;
+                  case 1: error_msg = "Missing a required option"; break;
+                  case 2: error_msg = "Bad length"; break;
+                  default: error_msg = "Parameter Problem: Bad IP header"; break;
+              }
+              break;
+          default:
+              error_msg = "Unknown ICMP Error"; break;
+        }
+        
+        printf("%ld bytes from %s: %s\n", lenRecv - (ip->ihl * 4), srcIp, error_msg);
         if (arguments->verboseIsEnable)
           printRespHeader(buffer);
       }
