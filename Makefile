@@ -24,7 +24,7 @@ fclean: clean
 
 re: fclean all
 
-setup-ttl:
+setup-host-unreachable:
 	@sudo ip netns add router 2>/dev/null || true
 	@sudo ip link add veth-vm type veth peer name veth-rtr 2>/dev/null || true
 	@sudo ip link set veth-rtr netns router 2>/dev/null || true
@@ -35,6 +35,22 @@ setup-ttl:
 	@sudo ip netns exec router sysctl -w net.ipv4.ip_forward=1 >/dev/null
 	@sudo ip route add 1.1.1.1 via 192.168.99.2 2>/dev/null || true
 	@echo "Routeur virtuel active ! Vous pouvez tester './ft_ping 1.1.1.1'"
+
+setup-ttl:
+	@sudo ip netns add router 2>/dev/null || true
+	@sudo ip link add veth-vm type veth peer name veth-rtr 2>/dev/null || true
+	@sudo ip link set veth-rtr netns router 2>/dev/null || true
+	@sudo ip addr add 192.168.99.1/24 dev veth-vm 2>/dev/null || true
+	@sudo ip link set veth-vm up
+	@sudo ip netns exec router ip addr add 192.168.99.2/24 dev veth-rtr 2>/dev/null || true
+	@sudo ip netns exec router ip link set veth-rtr up
+	@sudo ip netns exec router sysctl -w net.ipv4.ip_forward=1 >/dev/null
+	@sudo ip netns exec router ip link add dummy0 type dummy 2>/dev/null || true
+	@sudo ip netns exec router ip link set dummy0 up
+	@sudo ip netns exec router ip route add default dev dummy0 2>/dev/null || true
+	@sudo ip route add 1.1.1.1 via 192.168.99.2 2>/dev/null || true
+	@echo "Routeur virtuel actif ! Avec TTL=1, vous aurez 'Time to live exceeded'."
+
 
 clean-ttl:
 	@sudo ip route del 1.1.1.1 2>/dev/null || true
