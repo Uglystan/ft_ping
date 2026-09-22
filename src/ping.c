@@ -146,7 +146,7 @@ bool ping(struct arguments *arguments) {
   struct sockaddr_in srcAddress;
   int sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP); // Creation socket raw pour le protocole IMCP aveec IPV4
   if (sock < 0) {
-    printf("ft_ping: socket");
+    fprintf(stderr, "ft_ping: socket: Operation not permitted\n");
     return (false);
   }
   struct timeval timeout;
