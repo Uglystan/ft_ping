@@ -52,6 +52,8 @@ void printStat(struct stats *stat, struct arguments *arguments) {
 
 void printRespHeader(char *buffer) {
   struct iphdr *ip = (struct iphdr *)buffer;
+  // Ip du paquet qui a cause l'erreur (Sur une erreur le routeur qui genere l'erreur envoie un paquet avec Son entete IP
+  // (20) ensuite entete ICMP de l'erreur (8) et ensuite le header IP du paquet qui a fait l'erreur donc on recupe ca)
   struct iphdr *orig_ip = (struct iphdr *)(buffer + (ip->ihl * 4) + 8);
   struct icmphdr *orig_icmp =
       (struct icmphdr *)((char *)orig_ip + (orig_ip->ihl * 4));

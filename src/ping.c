@@ -67,7 +67,7 @@ bool sendPacket(struct sockaddr_in *srcAddress,
           stat.sqrTimeTrip += rtt * rtt;
           break;
         }
-        // Si ce n'est pas notre PID, on continue d'écouter
+        // Si ce n'est pas le bon PID, on continue d'écouter
       } else {
         // Erreurs ICMP
         struct iphdr *orig_ip = (struct iphdr *)(buffer + (ip->ihl * 4) + 8);
@@ -75,7 +75,7 @@ bool sendPacket(struct sockaddr_in *srcAddress,
             (struct icmphdr *)((char *)orig_ip + (orig_ip->ihl * 4));
 
         if (orig_icmp->un.echo.id != (getpid() & 0xFFFF)) {
-          // Erreur destinée à un autre processus ping
+          // Erreur destinée à un autre processus
           continue;
         }
 
@@ -125,7 +125,7 @@ bool sendPacket(struct sockaddr_in *srcAddress,
               error_msg = "Router discovery/selection/solicitation"; break;
           case ICMP_TIME_EXCEEDED: // 11
               switch (response->code) {
-                  case 0: error_msg = "Time to live (TTL) expired in transit"; break;
+                  case 0: error_msg = "Time to live exceeded"; break;
                   case 1: error_msg = "Fragment reassembly time exceeded"; break;
                   default: error_msg = "Time Exceeded (unknown code)"; break;
               }

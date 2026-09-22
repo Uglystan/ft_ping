@@ -49,7 +49,7 @@ setup-ttl:
 	@sudo ip netns exec router ip link set dummy0 up
 	@sudo ip netns exec router ip route add default dev dummy0 2>/dev/null || true
 	@sudo ip route add 1.1.1.1 via 192.168.99.2 2>/dev/null || true
-	@echo "Routeur virtuel actif ! Avec TTL=1, vous aurez 'Time to live exceeded'."
+	@echo "Routeur virtuel actif. TTL=1 sur 1.1.1.1"
 
 
 clean-ttl:
