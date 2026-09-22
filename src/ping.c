@@ -30,16 +30,22 @@ bool sendPacket(struct sockaddr_in *srcAddress,
     packet.hdr.checksum = checksum(&packet, sizeof(packet));
     lenSend = sendto(sock, &packet, sizeof(packet), 0,
                      (struct sockaddr *)&arguments->destAddress, size); // Cast sockaddr * car c'est la structure generique
-    gettimeofday(&startTv, NULL);
-    lenRecv = recvfrom(sock, buffer, sizeof(buffer), 0,
-                       (struct sockaddr *)srcAddress, &size);
-    gettimeofday(&endTv, NULL);
     if (lenSend < 0)
       return (perror("Error: "), false);
 
-    if (lenRecv > 0) { // Vérifie que le paquet a été reçu
-      double rtt = (endTv.tv_sec - startTv.tv_sec) * 1000.0 + (endTv.tv_usec - startTv.tv_usec) / 1000.0;
-      
+    stat.packetTransmitted++;
+    gettimeofday(&startTv, NULL);
+
+    while (!stop) {
+      lenRecv = recvfrom(sock, buffer, sizeof(buffer), 0,
+                         (struct sockaddr *)srcAddress, &size);
+      gettimeofday(&endTv, NULL);
+
+      if (lenRecv < 0) {
+        // Timeout ou interruption (signal)
+        break;
+      }
+
       /*
       Recvfrom avec une socketRaw donne le paquet IPV4 complet dans buffer donc ip header + ICMP header + msg
       ip->ihl c'est la longeure de l'en-tete ip en bloc de 4 octects exemple si ca vaut 4 c'est donc 4 bloc de 4 octects
@@ -50,6 +56,7 @@ bool sendPacket(struct sockaddr_in *srcAddress,
       if (response->type == ICMP_ECHOREPLY) {
         // 1. Succès
         if (response->un.echo.id == (getpid() & 0xFFFF)) {
+          double rtt = (endTv.tv_sec - startTv.tv_sec) * 1000.0 + (endTv.tv_usec - startTv.tv_usec) / 1000.0;
           printData(buffer, rtt, &arguments->destAddress, lenRecv);
           stat.packetReceived++;
           if (rtt > stat.maxTimeTrip)
@@ -58,9 +65,20 @@ bool sendPacket(struct sockaddr_in *srcAddress,
             stat.minTimeTrip = rtt;
           stat.totTimeTrip += rtt;
           stat.sqrTimeTrip += rtt * rtt;
+          break;
         }
+        // Si ce n'est pas notre PID, on continue d'écouter
       } else {
         // Erreurs ICMP
+        struct iphdr *orig_ip = (struct iphdr *)(buffer + (ip->ihl * 4) + 8);
+        struct icmphdr *orig_icmp =
+            (struct icmphdr *)((char *)orig_ip + (orig_ip->ihl * 4));
+
+        if (orig_icmp->un.echo.id != (getpid() & 0xFFFF)) {
+          // Erreur destinée à un autre processus ping
+          continue;
+        }
+
         char srcIp[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &srcAddress->sin_addr, srcIp, sizeof(srcIp));
         const char *error_msg = "Unknown ICMP Error";
@@ -127,13 +145,12 @@ bool sendPacket(struct sockaddr_in *srcAddress,
         printf("%ld bytes from %s: %s\n", lenRecv - (ip->ihl * 4), srcIp, error_msg);
         if (arguments->verboseIsEnable)
           printRespHeader(buffer);
+        break;
       }
     }
 
-    stat.packetTransmitted++;
-
     packet.hdr.un.echo.sequence++;
-    if (lenRecv > 0)
+    if (lenRecv > 0 && !stop)
         sleep(1);
   }
 
@@ -151,8 +168,8 @@ bool ping(struct arguments *arguments) {
   }
   struct timeval timeout;
 
-  int ttl = 1;
-  setsockopt(sock, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
+  // int ttl = 1;
+  // setsockopt(sock, IPPROTO_IP, IP_TTL, &ttl, sizeof(ttl));
 
   // Init d'un timeout pour recvfrom si pas de reponse au bout de 1sec
   timeout.tv_sec = 1;
